@@ -191,38 +191,5 @@ def internal_error(error):
 
 if __name__ == '__main__':
     import os
-    config_info = Config.get_info()
-
-    # Get port from environment variable (Render) or use default for local dev
-    port = int(os.getenv('PORT', 5001))
-
-    print("=" * 80)
-    print("FNCS API v2.0 - Financial News Classification System")
-    print("=" * 80)
-    print(f"Environment: {config_info['environment']}")
-    print(f"Debug Mode: {config_info['debug']}")
-    print(f"Server: http://0.0.0.0:{port}")
-    print(f"Database: {config_info['database']}")
-    print(f"JWT Token Expires: {config_info['jwt_expires']}")
-    print(f"CORS Origins: {', '.join(config_info['cors_origins'])}")
-    print("=" * 80)
-    print("\nAuthentication Endpoints:")
-    print("  POST   /auth/register       - Register new user")
-    print("  POST   /auth/login          - Login and get JWT token")
-    print("  GET    /auth/verify         - Verify token validity")
-    print("  GET    /auth/me             - Get current user info (protected)")
-    print("  POST   /auth/logout         - Logout")
-    print("\nCategory Endpoints (Protected - JWT Required):")
-    print("  GET    /categories          - Get all categories")
-    print("  GET    /categories/<id>     - Get category by ID")
-    print("  POST   /categories          - Create new category")
-    print("  PUT    /categories/<id>     - Update category")
-    print("  DELETE /categories/<id>     - Delete category")
-    print("\nUtility Endpoints:")
-    print("  GET    /                    - API documentation")
-    print("  GET    /health              - Health check")
-    print("=" * 80)
-    print("\nStarting server...")
-    print("=" * 80)
-
-    app.run(debug=Config.DEBUG, host='0.0.0.0', port=port)
+    port = int(os.environ.get('PORT', 5001))
+    app.run(host='0.0.0.0', port=port, debug=False)
