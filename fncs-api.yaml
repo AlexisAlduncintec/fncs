@@ -1,0 +1,1457 @@
+openapi: 3.0.3
+info:
+  title: Financial News Classification System (FNCS) API
+  description: |
+    API RESTful para el Sistema de Clasificación de Noticias Financieras (FNCS).
+    
+    El FNCS es una plataforma web avanzada que aprovecha inteligencia artificial para analizar 
+    noticias financieras y asistir a usuarios en la toma de decisiones de inversión informadas.
+    
+    **Características principales:**
+    - Clasificación automática de noticias en categorías financieras clave
+    - Generación de embeddings para búsqueda semántica
+    - Análisis RAG (Retrieval-Augmented Generation) para insights de inversión
+    - Búsqueda de artículos similares históricos
+    - Sistema de feedback y mejora continua
+    - Simulación de acciones de inversión
+    
+    **Tecnologías utilizadas:**
+    - Backend: Python 3.8+
+    - Frontend: React.js
+    - Base de datos: PostgreSQL, FAISS (vector database)
+    - IA: OpenAI GPT-4, Sentence Transformers (all-MiniLM-L6-v2)
+    - Autenticación: JWT (JSON Web Tokens)
+    
+    **Nota educativa:** Este sistema es para propósitos educativos y no constituye asesoría financiera.
+  version: 1.0.0
+  contact:
+    name: Equipo de Desarrollo FNCS - Grupo 7
+    email: alexis.alduncin@tec.mx
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.fncs.edu/v1
+    description: Servidor de Producción
+  - url: https://staging-api.fncs.edu/v1
+    description: Servidor de Staging (Pruebas)
+  - url: http://localhost:8080/v1
+    description: Entorno de Desarrollo Local
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Autenticación
+    description: Operaciones de registro, login y gestión de sesiones
+  - name: Usuarios
+    description: Gestión de perfiles y cuentas de usuario
+  - name: Noticias
+    description: Ingesta, procesamiento y gestión de artículos financieros
+  - name: Clasificación
+    description: Clasificación automática y manual de noticias
+  - name: Análisis
+    description: Generación de insights y búsqueda de similitud
+  - name: Acciones
+    description: Gestión de decisiones de inversión simuladas
+  - name: Categorías
+    description: Gestión de categorías de clasificación
+  - name: Feedback
+    description: Sistema de retroalimentación del usuario
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Autenticación
+      summary: Registrar nuevo usuario
+      description: |
+        Crea una nueva cuenta de usuario en el sistema FNCS.
+        El usuario recibe un email de verificación antes de activar su cuenta.
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email del usuario (único)
+                  example: "nuevo.usuario@example.com"
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  description: Nombre de usuario
+                  example: "inversor_pro"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  description: Contraseña (mínimo 8 caracteres)
+                  example: "SecurePass123!"
+              required:
+                - email
+                - username
+                - password
+      responses:
+        '201':
+          description: Usuario registrado exitosamente. Email de verificación enviado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Usuario registrado. Verifica tu email para activar la cuenta."
+                  userId:
+                    type: string
+                    format: uuid
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          description: Conflicto - Email ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "EMAIL_EXISTS"
+                message: "El email ya está registrado en el sistema"
+
+  /auth/login:
+    post:
+      tags:
+        - Autenticación
+      summary: Iniciar sesión
+      description: |
+        Autentica un usuario mediante email y contraseña.
+        Retorna un token JWT válido por 24 horas.
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "investor@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "MyPassword123!"
+              required:
+                - email
+                - password
+      responses:
+        '200':
+          description: Autenticación exitosa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Cuenta bloqueada por múltiples intentos fallidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "ACCOUNT_LOCKED"
+                message: "Cuenta bloqueada por 15 minutos debido a múltiples intentos fallidos"
+
+  /auth/logout:
+    post:
+      tags:
+        - Autenticación
+      summary: Cerrar sesión
+      description: Invalida el token JWT actual del usuario
+      operationId: logoutUser
+      responses:
+        '204':
+          description: Sesión cerrada exitosamente (Sin contenido)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/password-reset:
+    post:
+      tags:
+        - Autenticación
+      summary: Solicitar restablecimiento de contraseña
+      description: |
+        Envía un email con un link para restablecer la contraseña.
+        El link es válido por 1 hora.
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+              required:
+                - email
+      responses:
+        '200':
+          description: Email de restablecimiento enviado (si el email existe)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Si el email existe, recibirás instrucciones para restablecer tu contraseña"
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /users/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        description: ID único del usuario
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Usuarios
+      summary: Obtener perfil de usuario
+      description: Retorna la información del perfil de un usuario específico
+      operationId: getUserProfile
+      responses:
+        '200':
+          description: Perfil de usuario obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    put:
+      tags:
+        - Usuarios
+      summary: Actualizar perfil de usuario
+      description: Modifica la información del perfil del usuario
+      operationId: updateUserProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  example: "nuevo_username"
+                email:
+                  type: string
+                  format: email
+                  example: "nuevo.email@example.com"
+      responses:
+        '200':
+          description: Perfil actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags:
+        - Usuarios
+      summary: Eliminar usuario (Solo Admin)
+      description: Elimina permanentemente una cuenta de usuario. Requiere permisos de administrador.
+      operationId: deleteUser
+      responses:
+        '204':
+          description: Usuario eliminado exitosamente (Sin contenido)
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Prohibido - Requiere permisos de administrador
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "INSUFFICIENT_PERMISSIONS"
+                message: "Solo administradores pueden eliminar usuarios"
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /articles:
+    get:
+      tags:
+        - Noticias
+      summary: Listar noticias procesadas
+      description: |
+        Obtiene una lista paginada de artículos financieros procesados.
+        Soporta filtros por categoría, empresa y rango de fechas.
+      operationId: listArticles
+      parameters:
+        - name: page
+          in: query
+          description: Número de página para paginación
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Cantidad de resultados por página
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: category
+          in: query
+          description: Filtrar por categoría específica
+          required: false
+          schema:
+            type: string
+            example: "Earnings"
+        - name: company
+          in: query
+          description: Filtrar por símbolo de empresa (S&P 500)
+          required: false
+          schema:
+            type: string
+            example: "AAPL"
+        - name: startDate
+          in: query
+          description: Fecha de inicio del rango (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2025-01-01T00:00:00Z"
+        - name: endDate
+          in: query
+          description: Fecha de fin del rango (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2025-10-28T23:59:59Z"
+      responses:
+        '200':
+          description: Lista de artículos obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  pagination:
+                    type: object
+                    properties:
+                      currentPage:
+                        type: integer
+                        example: 1
+                      totalPages:
+                        type: integer
+                        example: 50
+                      totalItems:
+                        type: integer
+                        example: 1000
+                      itemsPerPage:
+                        type: integer
+                        example: 20
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags:
+        - Noticias
+      summary: Enviar noticia para procesamiento
+      description: |
+        Permite enviar una noticia financiera mediante URL, texto directo o archivo.
+        El sistema extrae el contenido, lo clasifica automáticamente y genera embeddings.
+      operationId: submitArticle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source:
+                  type: string
+                  enum: [url, text, file]
+                  description: Tipo de fuente del artículo
+                  example: "url"
+                url:
+                  type: string
+                  format: uri
+                  description: URL del artículo (requerido si source=url)
+                  example: "https://www.reuters.com/business/finance/..."
+                text:
+                  type: string
+                  maxLength: 10000
+                  description: Texto del artículo (requerido si source=text)
+                  example: "Apple Inc. reported strong Q4 earnings..."
+                fileContent:
+                  type: string
+                  format: byte
+                  description: Contenido del archivo en Base64 (requerido si source=file)
+                fileName:
+                  type: string
+                  description: Nombre del archivo original
+                  example: "earnings_report.pdf"
+                company:
+                  type: string
+                  description: Símbolo de la empresa relacionada (opcional)
+                  example: "AAPL"
+              required:
+                - source
+      responses:
+        '201':
+          description: Artículo enviado y procesado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Artículo procesado exitosamente"
+                  article:
+                    $ref: '#/components/schemas/Article'
+                  classification:
+                    $ref: '#/components/schemas/Classification'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          description: Error de procesamiento - No se pudo extraer contenido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "EXTRACTION_FAILED"
+                message: "No se pudo extraer texto del artículo. Verifica la URL o el formato del archivo."
+
+  /articles/{articleId}:
+    parameters:
+      - name: articleId
+        in: path
+        description: ID único del artículo
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Noticias
+      summary: Obtener detalle de una noticia
+      description: |
+        Retorna toda la información de un artículo específico incluyendo
+        su clasificación, embeddings generados y metadatos.
+      operationId: getArticleById
+      responses:
+        '200':
+          description: Detalle del artículo obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  article:
+                    $ref: '#/components/schemas/Article'
+                  classification:
+                    $ref: '#/components/schemas/Classification'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /articles/{articleId}/classification:
+    parameters:
+      - name: articleId
+        in: path
+        description: ID único del artículo
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags:
+        - Clasificación
+      summary: Reclasificar manualmente un artículo
+      description: |
+        Permite al usuario cambiar manualmente la categoría asignada a un artículo.
+        Esta reclasificación se registra para mejorar el modelo.
+      operationId: reclassifyArticle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newCategory:
+                  type: string
+                  description: Nueva categoría a asignar
+                  example: "Patents"
+                reason:
+                  type: string
+                  description: Razón de la reclasificación (opcional)
+                  example: "El artículo trata principalmente sobre una patente tecnológica"
+              required:
+                - newCategory
+      responses:
+        '200':
+          description: Artículo reclasificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Clasificación actualizada exitosamente"
+                  classification:
+                    $ref: '#/components/schemas/Classification'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /articles/{articleId}/feedback:
+    parameters:
+      - name: articleId
+        in: path
+        description: ID único del artículo
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Feedback
+      summary: Proporcionar feedback sobre clasificación
+      description: |
+        Permite al usuario dar retroalimentación sobre la precisión de la clasificación
+        automática para mejorar el modelo continuamente.
+      operationId: submitFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                suggestedCategory:
+                  type: string
+                  description: Categoría sugerida por el usuario
+                  example: "Mergers & Acquisitions"
+                comment:
+                  type: string
+                  maxLength: 500
+                  description: Comentario adicional opcional
+                  example: "La noticia habla claramente de una fusión, no de un contrato"
+              required:
+                - suggestedCategory
+      responses:
+        '201':
+          description: Feedback registrado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Gracias por tu feedback. Nos ayuda a mejorar el sistema."
+                  feedback:
+                    $ref: '#/components/schemas/Feedback'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /articles/{articleId}/similar:
+    parameters:
+      - name: articleId
+        in: path
+        description: ID único del artículo
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Análisis
+      summary: Obtener artículos similares
+      description: |
+        Utiliza búsqueda semántica con FAISS para encontrar los 25 artículos
+        históricos más similares basándose en embeddings vectoriales.
+        Útil para análisis de contexto histórico.
+      operationId: getSimilarArticles
+      parameters:
+        - name: minSimilarity
+          in: query
+          description: Umbral mínimo de similitud (0-1)
+          required: false
+          schema:
+            type: number
+            format: float
+            default: 0.7
+            minimum: 0
+            maximum: 1
+        - name: limit
+          in: query
+          description: Número máximo de resultados
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 50
+        - name: categoryFilter
+          in: query
+          description: Filtrar solo artículos de la misma categoría
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Lista de artículos similares obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queryArticleId:
+                    type: string
+                    format: uuid
+                    example: "123e4567-e89b-12d3-a456-426614174000"
+                  similarArticles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SimilarArticle'
+                  retrievalTime:
+                    type: number
+                    format: float
+                    description: Tiempo de búsqueda en milisegundos
+                    example: 87.5
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /articles/{articleId}/insights:
+    parameters:
+      - name: articleId
+        in: path
+        description: ID único del artículo
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Análisis
+      summary: Generar insight de inversión con RAG
+      description: |
+        Utiliza Retrieval-Augmented Generation (RAG) para generar insights de inversión
+        contextualizados. Combina el artículo actual con los 25 artículos más similares
+        y utiliza GPT-4 para generar recomendaciones fundamentadas.
+      operationId: generateInsight
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                includeMarketData:
+                  type: boolean
+                  description: Incluir datos de mercado en tiempo real (vía yfinance)
+                  default: true
+                  example: true
+                riskTolerance:
+                  type: string
+                  enum: [conservative, moderate, aggressive]
+                  description: Nivel de tolerancia al riesgo del usuario
+                  default: moderate
+                  example: "moderate"
+      responses:
+        '201':
+          description: Insight generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  insight:
+                    $ref: '#/components/schemas/Insight'
+                  tokensUsed:
+                    type: integer
+                    description: Tokens consumidos de la API de OpenAI
+                    example: 1847
+                  processingTime:
+                    type: number
+                    format: float
+                    description: Tiempo de procesamiento en segundos
+                    example: 4.32
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          description: Límite de API alcanzado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "RATE_LIMIT_EXCEEDED"
+                message: "Has alcanzado el límite de generación de insights. Intenta nuevamente en 1 hora."
+
+  /insights/{insightId}:
+    parameters:
+      - name: insightId
+        in: path
+        description: ID único del insight
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Análisis
+      summary: Obtener insight específico
+      description: |
+        Retorna un insight de inversión previamente generado con toda su información,
+        incluyendo la recomendación, justificación y nivel de confianza.
+      operationId: getInsightById
+      responses:
+        '200':
+          description: Insight obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Insight'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /categories:
+    get:
+      tags:
+        - Categorías
+      summary: Listar categorías disponibles
+      description: |
+        Obtiene todas las categorías de clasificación de noticias disponibles en el sistema.
+        Incluye categorías predefinidas: Contracts, Patents, M&A, Earnings, Executive Changes, Regulatory.
+      operationId: listCategories
+      responses:
+        '200':
+          description: Lista de categorías obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                  total:
+                    type: integer
+                    example: 6
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /actions:
+    get:
+      tags:
+        - Acciones
+      summary: Obtener historial de acciones de inversión
+      description: |
+        Retorna el historial de acciones de inversión simuladas del usuario.
+        Soporta paginación y filtros por tipo de acción y empresa.
+      operationId: listActions
+      parameters:
+        - name: page
+          in: query
+          description: Número de página para paginación
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Cantidad de resultados por página
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: actionType
+          in: query
+          description: Filtrar por tipo de acción
+          required: false
+          schema:
+            type: string
+            enum: [buy, sell, hold]
+        - name: company
+          in: query
+          description: Filtrar por símbolo de empresa
+          required: false
+          schema:
+            type: string
+            example: "TSLA"
+      responses:
+        '200':
+          description: Historial de acciones obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Action'
+                  pagination:
+                    type: object
+                    properties:
+                      currentPage:
+                        type: integer
+                        example: 1
+                      totalPages:
+                        type: integer
+                        example: 5
+                      totalItems:
+                        type: integer
+                        example: 98
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags:
+        - Acciones
+      summary: Registrar decisión de inversión
+      description: |
+        Permite al usuario registrar una decisión de inversión simulada (Buy/Sell/Hold)
+        basada en un insight generado. Opcionalmente puede integrarse con APIs de
+        brokers para paper trading (ej. Alpaca).
+      operationId: createAction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                insightId:
+                  type: string
+                  format: uuid
+                  description: ID del insight que motivó la acción
+                  example: "456e4567-e89b-12d3-a456-426614174111"
+                actionType:
+                  type: string
+                  enum: [buy, sell, hold]
+                  description: Tipo de acción a tomar
+                  example: "buy"
+                company:
+                  type: string
+                  description: Símbolo de la empresa
+                  example: "AAPL"
+                shares:
+                  type: integer
+                  minimum: 1
+                  description: Número de acciones (simuladas)
+                  example: 10
+                notes:
+                  type: string
+                  maxLength: 500
+                  description: Notas adicionales del usuario
+                  example: "Compra basada en fuerte reporte de ganancias Q4"
+              required:
+                - actionType
+                - company
+      responses:
+        '201':
+          description: Acción registrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Acción de inversión registrada exitosamente"
+                  action:
+                    $ref: '#/components/schemas/Action'
+                  simulationResult:
+                    type: object
+                    properties:
+                      currentPrice:
+                        type: number
+                        format: float
+                        example: 175.43
+                      totalValue:
+                        type: number
+                        format: float
+                        example: 1754.30
+                      estimatedFees:
+                        type: number
+                        format: float
+                        example: 0.00
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Insight no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    User:
+      type: object
+      description: Representa un usuario registrado en el sistema FNCS
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único del usuario
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          format: email
+          description: Email del usuario (único)
+          example: "investor@example.com"
+        username:
+          type: string
+          description: Nombre de usuario
+          example: "alexis_trader"
+        role:
+          type: string
+          enum: [user, admin]
+          description: Rol del usuario en el sistema
+          example: "user"
+        status:
+          type: string
+          enum: [active, pending, locked]
+          description: Estado de la cuenta
+          example: "active"
+        createdAt:
+          type: string
+          format: date-time
+          description: Fecha de registro
+          example: "2025-10-28T10:30:00Z"
+        lastLogin:
+          type: string
+          format: date-time
+          description: Última vez que el usuario inició sesión
+          example: "2025-10-28T15:45:00Z"
+      required:
+        - id
+        - email
+        - username
+        - role
+        - status
+        - createdAt
+
+    Article:
+      type: object
+      description: Noticia financiera procesada por el sistema
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único del artículo
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          description: Título del artículo
+          example: "Apple announces Q4 earnings beat expectations"
+        content:
+          type: string
+          description: Texto completo del artículo (máx 10,000 caracteres)
+          example: "Apple Inc. reported quarterly earnings that exceeded Wall Street expectations..."
+        source:
+          type: string
+          enum: [url, text, file]
+          description: Origen de la noticia
+          example: "url"
+        sourceUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: URL original (si aplica)
+          example: "https://www.reuters.com/business/apple-earnings-2025"
+        company:
+          type: string
+          description: Empresa relacionada (S&P 500)
+          example: "AAPL"
+        primaryCategory:
+          type: string
+          description: Categoría principal asignada
+          example: "Earnings"
+        categoryProbabilities:
+          type: object
+          description: Probabilidades de cada categoría
+          additionalProperties:
+            type: number
+            format: float
+          example: 
+            "Earnings": 0.92
+            "Contracts": 0.05
+            "Patents": 0.02
+            "M&A": 0.01
+        submittedBy:
+          type: string
+          format: uuid
+          description: ID del usuario que envió
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        processedAt:
+          type: string
+          format: date-time
+          description: Fecha de procesamiento
+          example: "2025-10-28T11:00:00Z"
+      required:
+        - id
+        - title
+        - content
+        - source
+        - primaryCategory
+        - processedAt
+
+    Classification:
+      type: object
+      description: Clasificación de una noticia
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único de la clasificación
+          example: "789e4567-e89b-12d3-a456-426614174999"
+        articleId:
+          type: string
+          format: uuid
+          description: ID del artículo clasificado
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        category:
+          type: string
+          description: Categoría asignada
+          example: "Mergers & Acquisitions"
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: Nivel de confianza (0-100%)
+          example: 87.5
+        isManual:
+          type: boolean
+          description: Si fue clasificación manual o automática
+          example: false
+        classifiedBy:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID del usuario que clasificó (si es manual)
+          example: null
+        classifiedAt:
+          type: string
+          format: date-time
+          description: Fecha de clasificación
+          example: "2025-10-28T11:01:00Z"
+      required:
+        - id
+        - articleId
+        - category
+        - confidence
+        - isManual
+        - classifiedAt
+
+    Insight:
+      type: object
+      description: Insight de inversión generado por RAG
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único del insight
+          example: "456e4567-e89b-12d3-a456-426614174111"
+        articleId:
+          type: string
+          format: uuid
+          description: Artículo base para el insight
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        content:
+          type: string
+          description: Texto del insight (200-500 palabras)
+          example: "Based on historical analysis of similar earnings announcements and current market conditions..."
+        recommendation:
+          type: string
+          enum: [buy, hold, sell]
+          description: Recomendación de inversión
+          example: "buy"
+        justification:
+          type: string
+          description: Justificación de la recomendación
+          example: "Strong earnings growth of 15% YoY, combined with positive analyst sentiment and historical patterns suggest upward momentum."
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: Confianza del insight (0-100%)
+          example: 78.3
+        similarArticlesUsed:
+          type: integer
+          description: Número de artículos similares usados en RAG
+          example: 25
+        generatedAt:
+          type: string
+          format: date-time
+          description: Fecha de generación
+          example: "2025-10-28T11:05:00Z"
+        disclaimer:
+          type: string
+          description: Aviso legal
+          example: "This is not financial advice. For educational purposes only. Consult a licensed financial advisor before making investment decisions."
+      required:
+        - id
+        - articleId
+        - content
+        - recommendation
+        - confidence
+        - similarArticlesUsed
+        - generatedAt
+        - disclaimer
+
+    Action:
+      type: object
+      description: Acción de inversión simulada por el usuario
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único de la acción
+          example: "999e4567-e89b-12d3-a456-426614174222"
+        userId:
+          type: string
+          format: uuid
+          description: Usuario que tomó la acción
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        insightId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Insight que motivó la acción
+          example: "456e4567-e89b-12d3-a456-426614174111"
+        actionType:
+          type: string
+          enum: [buy, sell, hold]
+          description: Tipo de acción tomada
+          example: "buy"
+        company:
+          type: string
+          description: Símbolo de la empresa
+          example: "AAPL"
+        shares:
+          type: integer
+          minimum: 0
+          description: Número de acciones (simuladas)
+          example: 10
+        priceAtAction:
+          type: number
+          format: float
+          description: Precio de la acción al momento
+          example: 175.43
+        notes:
+          type: string
+          nullable: true
+          description: Notas adicionales del usuario
+          example: "Compra basada en análisis de ganancias Q4"
+        timestamp:
+          type: string
+          format: date-time
+          description: Fecha y hora de la acción
+          example: "2025-10-28T12:00:00Z"
+      required:
+        - id
+        - userId
+        - actionType
+        - company
+        - timestamp
+
+    Category:
+      type: object
+      description: Categoría de clasificación de noticias
+      properties:
+        name:
+          type: string
+          description: Nombre de la categoría
+          example: "Earnings"
+        description:
+          type: string
+          description: Descripción de la categoría
+          example: "Quarterly or annual financial results announcements, earnings reports, revenue updates"
+        isActive:
+          type: boolean
+          description: Si la categoría está activa
+          example: true
+        articleCount:
+          type: integer
+          description: Número de artículos en esta categoría
+          example: 1523
+      required:
+        - name
+        - description
+        - isActive
+
+    SimilarArticle:
+      type: object
+      description: Artículo similar encontrado por búsqueda semántica
+      properties:
+        articleId:
+          type: string
+          format: uuid
+          description: ID del artículo similar
+          example: "333e4567-e89b-12d3-a456-426614174333"
+        title:
+          type: string
+          description: Título del artículo
+          example: "Microsoft Q3 results exceed estimates"
+        similarity:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Score de similitud coseno (0-1)
+          example: 0.85
+        category:
+          type: string
+          description: Categoría del artículo similar
+          example: "Earnings"
+        company:
+          type: string
+          description: Empresa relacionada
+          example: "MSFT"
+        date:
+          type: string
+          format: date-time
+          description: Fecha del artículo similar
+          example: "2025-09-15T10:00:00Z"
+      required:
+        - articleId
+        - title
+        - similarity
+        - date
+
+    AuthToken:
+      type: object
+      description: Token JWT de autenticación
+      properties:
+        token:
+          type: string
+          description: JWT token (válido 24 horas)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJyb2xlIjoidXNlciIsImV4cCI6MTczMDIwOTgwMH0.abc123def456ghi789"
+        expiresAt:
+          type: string
+          format: date-time
+          description: Fecha de expiración del token
+          example: "2025-10-29T10:30:00Z"
+        userId:
+          type: string
+          format: uuid
+          description: ID del usuario autenticado
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        role:
+          type: string
+          enum: [user, admin]
+          description: Rol del usuario
+          example: "user"
+      required:
+        - token
+        - expiresAt
+        - userId
+        - role
+
+    Feedback:
+      type: object
+      description: Feedback de usuario sobre clasificación
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único del feedback
+          example: "777e4567-e89b-12d3-a456-426614174444"
+        articleId:
+          type: string
+          format: uuid
+          description: Artículo sobre el que se da feedback
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        userId:
+          type: string
+          format: uuid
+          description: Usuario que da el feedback
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        originalCategory:
+          type: string
+          description: Categoría original asignada por el sistema
+          example: "Contracts"
+        suggestedCategory:
+          type: string
+          description: Categoría sugerida por el usuario
+          example: "Patents"
+        comment:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Comentario adicional
+          example: "This article is clearly about a patent approval, not a contract signing"
+        submittedAt:
+          type: string
+          format: date-time
+          description: Fecha de envío del feedback
+          example: "2025-10-28T13:00:00Z"
+      required:
+        - id
+        - articleId
+        - userId
+        - suggestedCategory
+        - submittedAt
+
+    Error:
+      type: object
+      description: Estructura de error estándar de la API
+      properties:
+        code:
+          type: string
+          description: Código de error interno
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Mensaje de error legible
+          example: "El campo 'email' es requerido y debe ser válido"
+        details:
+          type: array
+          nullable: true
+          description: Detalles adicionales del error
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: "password"
+              issue:
+                type: string
+                example: "Debe tener al menos 8 caracteres"
+        timestamp:
+          type: string
+          format: date-time
+          description: Momento en que ocurrió el error
+          example: "2025-10-28T14:30:00Z"
+      required:
+        - code
+        - message
+        - timestamp
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Autenticación mediante token JWT en el header Authorization.
+        
+        Formato: `Authorization: Bearer <token>`
+        
+        El token se obtiene mediante el endpoint `/auth/login` y tiene
+        una validez de 24 horas. Después de ese tiempo, el usuario
+        debe volver a autenticarse.
+
+  responses:
+    NotFoundError:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "NOT_FOUND"
+            message: "El recurso solicitado no existe"
+            timestamp: "2025-10-28T14:30:00Z"
+
+    BadRequestError:
+      description: Solicitud incorrecta - Faltan campos requeridos o el formato es inválido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "VALIDATION_ERROR"
+            message: "Error de validación en los datos enviados"
+            details:
+              - field: "email"
+                issue: "Formato de email inválido"
+              - field: "password"
+                issue: "Debe tener al menos 8 caracteres"
+            timestamp: "2025-10-28T14:30:00Z"
+
+    UnauthorizedError:
+      description: Acceso no autorizado - Falta el token de autenticación o es inválido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "UNAUTHORIZED"
+            message: "Token de autenticación inválido o expirado"
+            timestamp: "2025-10-28T14:30:00Z"

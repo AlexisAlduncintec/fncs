@@ -47,3 +47,22 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Frontend (Node.js)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+node_modules/
+
+# Frontend environment files (production will be set in Vercel)
+frontend/.env.local
+frontend/.env.production.local
+
+# Ngrok
+ngrok
+ngrok.exe
+ngrok_setup.py
+
+# Windows reserved file
+nul
+**/nul

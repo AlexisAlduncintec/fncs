@@ -85,6 +85,7 @@ See the [detailed Database Setup](#database-setup) section below.
 
 ## Table of Contents
 - [Quick Setup](#-quick-setup-start-here)
+- [Deployment](#-deployment) ⭐ NEW!
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -97,6 +98,68 @@ See the [detailed Database Setup](#database-setup) section below.
 - [Testing the API](#testing-the-api)
 - [Error Handling](#error-handling)
 - [Contributing](#contributing)
+
+---
+
+## 🌐 Deployment
+
+**Share your FNCS application with teammates via public URLs!**
+
+This project is configured for easy deployment:
+- **Backend:** Exposed via Ngrok tunnel (local server with public HTTPS URL)
+- **Frontend:** Deployed to Vercel (permanent, free hosting)
+- **Database:** Already on Supabase (cloud PostgreSQL)
+
+### Quick Deployment Steps:
+
+1. **Start backend locally:**
+   ```bash
+   python app.py
+   ```
+
+2. **Expose backend with Ngrok:**
+   ```bash
+   python ngrok_setup.py
+   ```
+   Copy the public URL (e.g., `https://abc123.ngrok-free.app`)
+
+3. **Update frontend environment:**
+   Edit `frontend/.env.production` and set:
+   ```env
+   VITE_API_URL=https://your-ngrok-url.ngrok-free.app
+   ```
+
+4. **Deploy frontend to Vercel:**
+   - Go to [vercel.com](https://vercel.com)
+   - Import GitHub repository
+   - Set Root Directory: `frontend`
+   - Add environment variable: `VITE_API_URL`
+   - Deploy!
+
+5. **Share the Vercel URL with teammates**
+
+### 📚 Complete Documentation:
+
+For detailed step-by-step instructions, troubleshooting, and advanced configuration, see:
+**[DEPLOYMENT.md](./DEPLOYMENT.md)**
+
+The deployment guide includes:
+- Complete deployment architecture diagram
+- Detailed instructions for each step
+- Environment configuration
+- Testing checklist
+- Troubleshooting guide
+- Security best practices
+- Maintenance workflow
+
+### Deployment Features:
+
+✅ **Free tier deployment** - $0/month
+✅ **HTTPS enabled** - Secure by default
+✅ **CORS configured** - Supports ngrok and Vercel domains
+✅ **JWT authentication** - Protected API endpoints
+✅ **Auto-deployment** - Vercel deploys on git push
+✅ **Easy sharing** - Single URL for teammates
 
 ---
 
