@@ -103,40 +103,35 @@ See the [detailed Database Setup](#database-setup) section below.
 
 ## 🌐 Deployment
 
-**Share your FNCS application with teammates via public URLs!**
+**Share your FNCS application with teammates via public URLs - No computer required!**
 
-This project is configured for easy deployment:
-- **Backend:** Exposed via Ngrok tunnel (local server with public HTTPS URL)
-- **Frontend:** Deployed to Vercel (permanent, free hosting)
+This project is configured for permanent free hosting:
+- **Backend:** Deployed to Render.com (always-on cloud hosting)
+- **Frontend:** Deployed to Vercel (permanent CDN hosting)
 - **Database:** Already on Supabase (cloud PostgreSQL)
 
 ### Quick Deployment Steps:
 
-1. **Start backend locally:**
-   ```bash
-   python app.py
-   ```
+1. **Deploy Backend to Render:**
+   - Sign up at [render.com](https://render.com)
+   - Connect GitHub repository
+   - Render auto-detects `render.yaml`
+   - Add environment variables (DATABASE_URL, JWT_SECRET_KEY)
+   - Deploy! (~10 minutes)
 
-2. **Expose backend with Ngrok:**
-   ```bash
-   python ngrok_setup.py
-   ```
-   Copy the public URL (e.g., `https://abc123.ngrok-free.app`)
+2. **Get Render URL:**
+   - Copy backend URL: `https://fncs-api.onrender.com`
 
-3. **Update frontend environment:**
-   Edit `frontend/.env.production` and set:
-   ```env
-   VITE_API_URL=https://your-ngrok-url.ngrok-free.app
-   ```
-
-4. **Deploy frontend to Vercel:**
-   - Go to [vercel.com](https://vercel.com)
+3. **Deploy Frontend to Vercel:**
+   - Sign up at [vercel.com](https://vercel.com)
    - Import GitHub repository
-   - Set Root Directory: `frontend`
-   - Add environment variable: `VITE_API_URL`
-   - Deploy!
+   - Root Directory: `frontend`
+   - Add environment variable: `VITE_API_URL=https://fncs-api.onrender.com`
+   - Deploy! (~5 minutes)
 
-5. **Share the Vercel URL with teammates**
+4. **Share the Vercel URL with teammates** 🎉
+
+**Total deployment time: ~15 minutes**
 
 ### 📚 Complete Documentation:
 
@@ -145,21 +140,23 @@ For detailed step-by-step instructions, troubleshooting, and advanced configurat
 
 The deployment guide includes:
 - Complete deployment architecture diagram
-- Detailed instructions for each step
+- Detailed Render.com deployment instructions
 - Environment configuration
 - Testing checklist
+- Cold start behavior explanation
 - Troubleshooting guide
 - Security best practices
 - Maintenance workflow
 
 ### Deployment Features:
 
-✅ **Free tier deployment** - $0/month
+✅ **Permanent free hosting** - $0/month, no computer needed
 ✅ **HTTPS enabled** - Secure by default
-✅ **CORS configured** - Supports ngrok and Vercel domains
+✅ **CORS configured** - Supports Render and Vercel domains
 ✅ **JWT authentication** - Protected API endpoints
-✅ **Auto-deployment** - Vercel deploys on git push
-✅ **Easy sharing** - Single URL for teammates
+✅ **Auto-deployment** - Both platforms deploy on git push
+✅ **Always accessible** - Teammates can use 24/7
+✅ **Professional setup** - Real cloud deployment
 
 ---
 

@@ -22,19 +22,17 @@ except ValueError as e:
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Configure CORS with support for ngrok and Vercel domains
+# Configure CORS with support for Render and Vercel domains
 def cors_origin_validator(origin):
     """
-    Custom CORS origin validator supporting wildcards for ngrok and Vercel
+    Custom CORS origin validator supporting wildcards for Render and Vercel
     """
     # Allow localhost origins
     if origin in Config.CORS_ORIGINS:
         return True
 
-    # Allow ngrok domains
-    if re.match(r'https://[\w-]+\.ngrok-free\.app', origin):
-        return True
-    if re.match(r'https://[\w-]+\.ngrok\.io', origin):
+    # Allow Render domains
+    if re.match(r'https://[\w-]+\.onrender\.com', origin):
         return True
 
     # Allow Vercel domains
@@ -192,14 +190,18 @@ def internal_error(error):
 
 
 if __name__ == '__main__':
+    import os
     config_info = Config.get_info()
+
+    # Get port from environment variable (Render) or use default for local dev
+    port = int(os.getenv('PORT', 5001))
 
     print("=" * 80)
     print("FNCS API v2.0 - Financial News Classification System")
     print("=" * 80)
     print(f"Environment: {config_info['environment']}")
     print(f"Debug Mode: {config_info['debug']}")
-    print(f"Server: http://localhost:5001")
+    print(f"Server: http://0.0.0.0:{port}")
     print(f"Database: {config_info['database']}")
     print(f"JWT Token Expires: {config_info['jwt_expires']}")
     print(f"CORS Origins: {', '.join(config_info['cors_origins'])}")
@@ -223,4 +225,4 @@ if __name__ == '__main__':
     print("\nStarting server...")
     print("=" * 80)
 
-    app.run(debug=Config.DEBUG, host='0.0.0.0', port=5001)
+    app.run(debug=Config.DEBUG, host='0.0.0.0', port=port)
