@@ -8,7 +8,6 @@ from flask_cors import CORS
 from config import Config
 from routes.auth_routes import auth_bp
 from routes.category_routes import category_bp
-import re
 
 # Validate configuration before starting
 try:
@@ -22,35 +21,15 @@ except ValueError as e:
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Configure CORS with support for Render and Vercel domains
-def cors_origin_validator(origin):
-    """
-    Custom CORS origin validator supporting wildcards for Render and Vercel
-    """
-    # Allow localhost origins
-    if origin in Config.CORS_ORIGINS:
-        return True
-
-    # Allow Render domains
-    if re.match(r'https://[\w-]+\.onrender\.com', origin):
-        return True
-
-    # Allow Vercel domains
-    if re.match(r'https://[\w-]+\.vercel\.app', origin):
-        return True
-
-    return False
-
-CORS(app, resources={
-    r"/*": {
-        "origins": cors_origin_validator,
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "expose_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True,
-        "max_age": 3600
-    }
-})
+# Configure CORS with support for local dev, Render and Vercel domains
+# Using permissive CORS for dynamic subdomains (Render/Vercel deployments)
+# JWT is sent via Authorization header, which works without credentials flag
+CORS(app,
+     origins="*",
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"],
+     expose_headers=["Content-Type", "Authorization"],
+     max_age=3600)
 
 # Register blueprints
 app.register_blueprint(auth_bp)
