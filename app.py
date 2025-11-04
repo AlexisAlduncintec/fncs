@@ -21,15 +21,22 @@ except ValueError as e:
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Configure CORS with support for local dev, Render and Vercel domains
-# Using permissive CORS for dynamic subdomains (Render/Vercel deployments)
-# JWT is sent via Authorization header, which works without credentials flag
-CORS(app,
-     origins="*",
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization"],
-     expose_headers=["Content-Type", "Authorization"],
-     max_age=3600)
+# Configure CORS with explicit origins for production deployment
+# Includes localhost for development and specific Vercel domain for production
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "https://fncsalexis.vercel.app"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True,
+        "max_age": 3600
+    }
+})
 
 # Register blueprints
 app.register_blueprint(auth_bp)
