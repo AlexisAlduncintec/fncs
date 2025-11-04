@@ -2,6 +2,7 @@ services:
   - type: web
     name: fncs-api
     runtime: python
+    pythonVersion: "3.11.0"
     region: oregon
     plan: free
     branch: main
@@ -20,5 +21,3 @@ services:
         value: production
       - key: FLASK_DEBUG
         value: "False"
-      - key: PYTHON_VERSION
-        value: 3.11.0
