@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
 const RegisterPage = () => {
@@ -14,7 +15,6 @@ const RegisterPage = () => {
     confirmPassword: '',
     fullName: '',
   });
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -29,16 +29,15 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      toast.error('Password must be at least 6 characters long');
       return;
     }
 
@@ -48,14 +47,13 @@ const RegisterPage = () => {
       const result = await register(formData.email, formData.password, formData.fullName);
       if (result.success) {
         // Registration successful, redirect to login
-        navigate('/login', {
-          state: { message: 'Registration successful! Please log in.' },
-        });
+        toast.success('Registration successful! Please log in.');
+        navigate('/login');
       } else {
-        setError(result.error || 'Registration failed');
+        toast.error(result.error || 'Registration failed');
       }
     } catch (err) {
-      setError(err.error || 'An error occurred. Please try again.');
+      toast.error(err.error || 'An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -77,12 +75,6 @@ const RegisterPage = () => {
         </div>
 
         <form className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-md" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-
           <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">

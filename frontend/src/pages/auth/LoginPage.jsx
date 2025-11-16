@@ -5,12 +5,12 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -18,18 +18,18 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setIsLoading(true);
 
     try {
       const result = await login(email, password);
       if (result.success) {
+        toast.success('Welcome back! Login successful');
         navigate('/categories');
       } else {
-        setError(result.error || 'Login failed');
+        toast.error(result.error || 'Login failed');
       }
     } catch (err) {
-      setError(err.error || 'An error occurred. Please try again.');
+      toast.error(err.error || 'An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -51,12 +51,6 @@ const LoginPage = () => {
         </div>
 
         <form className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-md" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-
           <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
