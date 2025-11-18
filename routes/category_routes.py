@@ -5,9 +5,12 @@ Handles CRUD operations for categories (Protected with JWT)
 
 from flask import Blueprint, request, jsonify
 import psycopg2
+import logging
 from middleware.auth_middleware import token_required
-from utils.db import get_db_connection
+from utils.db import get_db_connection, return_db_connection
 from utils.validators import validate_category_data
+
+logger = logging.getLogger(__name__)
 
 # Create categories blueprint
 category_bp = Blueprint('categories', __name__, url_prefix='/categories')
@@ -27,8 +30,9 @@ def get_categories():
         401: Unauthorized (invalid/missing token)
         500: Server error
     """
+    conn = None
     try:
-        conn = get_db_connection()
+        conn = get_db_connection(retries=3, delay=2)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -38,9 +42,7 @@ def get_categories():
         """)
 
         categories = cursor.fetchall()
-
         cursor.close()
-        conn.close()
 
         return jsonify({
             'success': True,
@@ -49,10 +51,20 @@ def get_categories():
         }), 200
 
     except Exception as e:
+        logger.error(f"Error retrieving categories: {e}")
+        if 'Failed to connect' in str(e):
+            return jsonify({
+                'success': False,
+                'error': 'Database temporarily unavailable. Please try again in a moment.'
+            }), 503
         return jsonify({
             'success': False,
             'error': f'Failed to retrieve categories: {str(e)}'
         }), 500
+
+    finally:
+        if conn:
+            return_db_connection(conn)
 
 
 @category_bp.route('/<int:category_id>', methods=['GET'])
@@ -332,8 +344,9 @@ def delete_category(category_id):
         404: Category not found
         500: Server error
     """
+    conn = None
     try:
-        conn = get_db_connection()
+        conn = get_db_connection(retries=3, delay=2)
         cursor = conn.cursor()
 
         # Check if category exists
@@ -342,7 +355,6 @@ def delete_category(category_id):
 
         if category is None:
             cursor.close()
-            conn.close()
             return jsonify({
                 'success': False,
                 'error': f'Category with id {category_id} not found'
@@ -350,10 +362,8 @@ def delete_category(category_id):
 
         # Delete the category
         cursor.execute("DELETE FROM categories WHERE id = %s", (category_id,))
-
         conn.commit()
         cursor.close()
-        conn.close()
 
         return jsonify({
             'success': True,
@@ -361,7 +371,22 @@ def delete_category(category_id):
         }), 200
 
     except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        logger.error(f"Error deleting category {category_id}: {e}")
+        if 'Failed to connect' in str(e):
+            return jsonify({
+                'success': False,
+                'error': 'Database temporarily unavailable. Please try again in a moment.'
+            }), 503
         return jsonify({
             'success': False,
             'error': f'Failed to delete category: {str(e)}'
         }), 500
+
+    finally:
+        if conn:
+            return_db_connection(conn)

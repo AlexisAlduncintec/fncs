@@ -22,13 +22,13 @@ def initialize_connection_pool():
     try:
         connection_pool = psycopg2.pool.SimpleConnectionPool(
             1,  # min connections
-            10,  # max connections
+            20,  # max connections (increased from 10 to prevent exhaustion)
             Config.DATABASE_URL,
             cursor_factory=RealDictCursor,
             connect_timeout=10
         )
         if connection_pool:
-            logger.info("✅ Connection pool created successfully")
+            logger.info("✅ Connection pool created successfully (size: 1-20)")
     except Exception as e:
         logger.error(f"❌ Error creating connection pool: {e}")
         connection_pool = None
@@ -65,6 +65,14 @@ def get_db_connection(retries=3, delay=2):
             if connection_pool:
                 conn = connection_pool.getconn()
                 if conn:
+                    # Set statement timeout to prevent long-running queries
+                    try:
+                        cur = conn.cursor()
+                        cur.execute("SET statement_timeout = 30000")  # 30 seconds
+                        cur.close()
+                    except Exception as timeout_error:
+                        logger.warning(f"Could not set statement timeout: {timeout_error}")
+
                     logger.info(f"✅ Connection obtained from pool (attempt {attempt + 1}/{retries})")
                     return conn
 
@@ -94,21 +102,42 @@ def get_db_connection(retries=3, delay=2):
 
 def return_db_connection(conn):
     """
-    Return connection to pool or close it
+    Return connection to pool or close it safely
+    Ensures proper cleanup to prevent pool exhaustion
 
     Args:
         conn: Database connection to return/close
     """
     global connection_pool
+
+    if not conn:
+        return
+
     try:
+        # Rollback any uncommitted transactions
+        try:
+            conn.rollback()
+        except Exception as rollback_error:
+            logger.debug(f"Rollback on return (expected if already committed): {rollback_error}")
+
+        # Return to pool or close
         if connection_pool:
-            connection_pool.putconn(conn)
-            logger.debug("✅ Connection returned to pool")
+            try:
+                connection_pool.putconn(conn)
+                logger.info("✅ Connection returned to pool")
+            except Exception as putconn_error:
+                logger.error(f"❌ Error returning to pool, forcing close: {putconn_error}")
+                try:
+                    conn.close()
+                except:
+                    pass
         else:
             conn.close()
-            logger.debug("✅ Direct connection closed")
+            logger.info("✅ Direct connection closed")
+
     except Exception as e:
-        logger.error(f"❌ Error returning connection: {e}")
+        logger.error(f"❌ Error in return_db_connection: {e}")
+        # Force close as last resort
         try:
             conn.close()
         except:
