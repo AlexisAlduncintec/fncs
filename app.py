@@ -8,6 +8,7 @@ from flask_cors import CORS
 from config import Config
 from routes.auth_routes import auth_bp
 from routes.category_routes import category_bp
+from routes.diagnostic_routes import diagnostic_bp
 
 # Validate configuration before starting
 try:
@@ -41,6 +42,7 @@ CORS(app, resources={
 # Register blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(category_bp)
+app.register_blueprint(diagnostic_bp)
 
 
 # Root endpoint

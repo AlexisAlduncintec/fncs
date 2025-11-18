@@ -8,7 +8,7 @@ import jwt
 from datetime import datetime, timedelta
 import psycopg2
 from config import Config
-from utils.db import get_db_connection
+from utils.db import get_db_connection, return_db_connection
 from utils.password import hash_password, verify_password
 from utils.validators import validate_email, validate_password
 
@@ -86,43 +86,54 @@ def register():
         password_hash = hash_password(password)
 
         # Insert user into database
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        conn = None
+        try:
+            conn = get_db_connection(retries=3, delay=2)
+            cursor = conn.cursor()
 
-        cursor.execute("""
-            INSERT INTO users (email, password_hash, full_name)
-            VALUES (%s, %s, %s)
-            RETURNING id, email, full_name, created_at
-        """, (email, password_hash, full_name))
+            cursor.execute("""
+                INSERT INTO users (email, password_hash, full_name)
+                VALUES (%s, %s, %s)
+                RETURNING id, email, full_name, created_at
+            """, (email, password_hash, full_name))
 
-        user = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-        conn.close()
+            user = cursor.fetchone()
+            conn.commit()
+            cursor.close()
 
-        return jsonify({
-            'success': True,
-            'message': 'User registered successfully',
-            'data': {
-                'id': user['id'],
-                'email': user['email'],
-                'full_name': user['full_name'],
-                'created_at': user['created_at'].isoformat()
-            }
-        }), 201
+            return jsonify({
+                'success': True,
+                'message': 'User registered successfully',
+                'data': {
+                    'id': user['id'],
+                    'email': user['email'],
+                    'full_name': user['full_name'],
+                    'created_at': user['created_at'].isoformat()
+                }
+            }), 201
 
-    except psycopg2.IntegrityError as e:
-        if 'unique constraint' in str(e).lower() or 'duplicate key' in str(e).lower():
+        except psycopg2.IntegrityError as e:
+            if 'unique constraint' in str(e).lower() or 'duplicate key' in str(e).lower():
+                return jsonify({
+                    'success': False,
+                    'error': 'Email already registered'
+                }), 400
             return jsonify({
                 'success': False,
-                'error': 'Email already registered'
+                'error': f'Database integrity error: {str(e)}'
             }), 400
-        return jsonify({
-            'success': False,
-            'error': f'Database integrity error: {str(e)}'
-        }), 400
+
+        finally:
+            if conn:
+                return_db_connection(conn)
 
     except Exception as e:
+        # Check if it's a connection error
+        if 'Failed to connect' in str(e) or 'Network' in str(e):
+            return jsonify({
+                'success': False,
+                'error': 'Database temporarily unavailable. Please try again in a moment.'
+            }), 503
         return jsonify({
             'success': False,
             'error': f'Registration failed: {str(e)}'
